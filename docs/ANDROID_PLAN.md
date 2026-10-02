@@ -83,7 +83,7 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 
 | # | 내용 | 산출물 | 예상 |
 |---|---|---|---|
-| A0 | 스파이크: 에뮬레이터에서 screencap·dump 속도, idle 실패 빈도, Compose 덤프 모양 확인 | 메모 + 실제 덤프 XML 픽스처 3종 (View, Compose, 다이얼로그) | 0.5일 |
+| A0 ✅ | 스파이크: 에뮬레이터에서 screencap·dump 속도, idle 실패 빈도, Compose 덤프 모양 확인 | 메모 + 실제 덤프 XML 픽스처 3종 (View, Compose, 다이얼로그) | 0.5일 |
 | A1 | adb 레이어 + hierarchy 파서 | `adb.ts`, `hierarchy.ts`, 픽스처 단위 테스트 | 1일 |
 | A2 | SourceLocator | `locate.ts`, 픽스처 Android 프로젝트(빌드 불필요한 res/ + .kt 몇 개) 테스트 | 1.5일 |
 | A3 | 서버·CLI·MCP | `/api/android/devices`, `/api/capture-android`, `lookhere capture --android [--serial]`, MCP `list_android_devices`·`capture_android` | 1일 |
@@ -96,6 +96,16 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 - **Android SDK platform-tools (adb)**: ✅ `winget install Google.PlatformTools`로 설치 (adb 37.0.1)
 - **테스트 기기**: Android Studio 공식 에뮬레이터(AVD) — Pixel 8, API 35, Google APIs x86_64 이미지. Hyper-V가 켜진 PC라 "Windows 하이퍼바이저 플랫폼" 기능이 필요하다. 실기기(USB 디버깅)는 보조 확인용
 - **데모 앱** `examples/android-demo`: View 화면 1개 + Compose 화면 1개 (id, 문자열 리소스, testTag, 하드코딩 텍스트를 일부러 섞음)
+
+## A0 결과 (2026-10-02, 에뮬레이터 Pixel 8 / API 35, WHPX 가속)
+
+- 부팅 63초. `screencap -p` 약 0.7초(1080×2400, 94KB~), `uiautomator dump` 약 3초
+- 덤프 `bounds`를 캡처 이미지에 그리면 픽셀 단위로 정확히 겹친다 → `matchElements()` 그대로 사용 가능
+- 앱이 막 뜨는 중(스플래시)에는 덤프가 `null root node returned`로 실패. 화면이 안정되면 성공
+  → **덤프를 먼저 성공시키고 바로 이어서 screencap** (시점 일치), 실패 시 2초 간격 재시도
+- Settings 홈 덤프: 노드 64개, `resource-id`(`com.android.settings:id/homepage_title` 등)·`text`·`class` 모두 채워짐
+  → `test/fixtures/android/settings-home.xml`로 저장
+- 현재 화면: `dumpsys window` → `mCurrentFocus=…/com.android.settings.homepage.SettingsHomepageActivity`
 
 ## 위험과 대응
 
