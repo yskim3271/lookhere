@@ -87,7 +87,7 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 | A1 ✅ | adb 레이어 + hierarchy 파서 | `adb.ts`, `hierarchy.ts`, 픽스처 단위 테스트 | 1일 |
 | A2 ✅ | SourceLocator | `locate.ts`, 픽스처 Android 프로젝트(빌드 불필요한 res/ + .kt 몇 개) 테스트 | 1.5일 |
 | A3 ✅ | 서버·CLI·MCP | `/api/android/devices`, `/api/capture-android`, `lookhere capture --android [--serial]`, MCP `list_android_devices`·`capture_android` | 1일 |
-| A4 | UI | Android 버튼, 기기 선택, 3초 후 캡처, 요소 칩에 id/클래스/소스 표시 | 1일 |
+| A4 ✅ | UI | Android 버튼, 기기 선택, 3초 후 캡처, 요소 칩에 id/클래스/소스 표시 | 1일 |
 | A5 | 검증·문서 | 에뮬레이터 E2E(데모 앱), Codex로 MCP 끝까지, README Android 절 | 1일 |
 | A6 | (선택) 라이브 미러 | screencap 폴링(1–2fps) 미리보기로 기기를 조작하며 원하는 순간 캡처 | 이후 |
 
@@ -135,6 +135,15 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 - 실기 검증 (에뮬레이터 Settings + Settings를 흉내 낸 임시 프로젝트): MCP `capture_android` → API로 네모 2개 → `get_feedback`에
   `TextView "Network & internet"` → `SettingsHomepageActivity.kt:4 (R.string.network_dashboard_title)`,
   `homepage_title` → `settings_homepage.xml:3 (android:id)`, 화면 → Activity 파일까지 표시됨
+
+## A4 결과
+
+- 툴바에 **Capture Android** / **3 s**(페이지에서 카운트다운 → 그동안 기기에서 메뉴를 열 수 있음), 기기가 2대 이상이면 기기 선택
+- 기기 목록은 페이지 로드 때 조용히 조회, adb가 없거나 기기가 없으면 버튼을 눌렀을 때만 안내
+- 요소 트리를 못 읽은 캡처는 노란 안내줄(warning)로 표시
+- 캡처 목록: Activity 짧은 이름(`SettingsHomepageActivity`) + `UI tree` 표시
+- 박스 패널: 긴 Android 경로는 끝 두 단계만, 소스는 `↳ 파일명:줄`(전체 경로·근거는 툴팁)
+- 실제 Chrome(browser-skill)에서 3초 캡처 → 네모 → 메모 → 보내기 → `lookhere pull`로 소스·Activity 포함 확인
 
 ## 위험과 대응
 

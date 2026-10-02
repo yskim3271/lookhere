@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { matchElements } from "../../src/shared/mapping";
 import type { Box, Capture } from "../../src/shared/types";
 import { Annotator } from "./Annotator";
-import { api, type SendResult } from "./api";
+import { api, type AndroidDevice, type SendResult } from "./api";
 import { blobToPngDataUrl, renderCapture } from "./images";
 import { ScreenShare } from "./ScreenShare";
 
@@ -11,8 +11,17 @@ const PASTE_KEY = isMac ? "⌘V" : "Ctrl+V";
 
 function describeSource(c: Capture): string {
   if (c.source.kind === "url") return c.source.title || c.source.url || "Page";
+  // "com.android.settings/.homepage.SettingsHomepageActivity" -> "SettingsHomepageActivity"
+  if (c.source.kind === "android" && c.source.activity) return c.source.activity.split(/[/.]/).pop() || c.source.activity;
   const fallback = { paste: "Pasted image", file: "Image file", screen: "Screen capture", android: "Android screen" };
   return c.source.title || fallback[c.source.kind];
+}
+
+/** Android selectors can be long paths; the panel shows the last two steps (the full one is in the bundle). */
+function shortSelector(selector: string): string {
+  const parts = selector.split(" > ");
+  const tail = parts.slice(-2).join(" > ");
+  return (parts.length > 2 ? "… > " : "") + tail.replace(/^[\w.]+:id\//, "");
 }
 
 function isAnnotated(c: Capture): boolean {
@@ -28,6 +37,10 @@ export function App() {
   const [url, setUrl] = useState("http://localhost:3000/");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [devices, setDevices] = useState<AndroidDevice[]>([]);
+  const [serial, setSerial] = useState("");
+  const [countdown, setCountdown] = useState<number | null>(null);
   const [sent, setSent] = useState<SendResult | null>(null);
   const [copied, setCopied] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -87,6 +100,7 @@ export function App() {
   const addCapture = useCallback(async (work: () => Promise<Capture>, label: string) => {
     setBusy(label);
     setError(null);
+    setNotice(null);
     setSent(null);
     try {
       const c = await work();
@@ -153,6 +167,43 @@ export function App() {
   const captureFromUrl = (e: React.FormEvent) => {
     e.preventDefault();
     void addCapture(() => api.captureUrl(url.trim(), 1280, 800, false), "Capturing page…");
+  };
+
+  // Devices are looked up quietly on load; a missing adb only matters once the user asks for Android.
+  const refreshDevices = useCallback(async () => {
+    const list = (await api.androidDevices()).filter((d) => d.state === "device");
+    setDevices(list);
+    setSerial((cur) => (list.some((d) => d.serial === cur) ? cur : (list[0]?.serial ?? "")));
+    return list;
+  }, []);
+
+  useEffect(() => {
+    refreshDevices().catch(() => {});
+  }, [refreshDevices]);
+
+  const captureAndroid = async (delaySeconds = 0) => {
+    setError(null);
+    try {
+      const list = await refreshDevices();
+      if (list.length === 0) {
+        setError("No Android device found. Start an emulator or connect a phone with USB debugging on, then try again.");
+        return;
+      }
+    } catch (e) {
+      setError((e as Error).message);
+      return;
+    }
+    // Count down in the page so the user can open a menu or scroll on the device meanwhile.
+    for (let s = delaySeconds; s > 0; s--) {
+      setCountdown(s);
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    setCountdown(null);
+    await addCapture(async () => {
+      const c = await api.captureAndroid(serial || undefined);
+      if (c.warning) setNotice(c.warning);
+      return c;
+    }, "Capturing Android screen…");
   };
 
   // ---------- editing ----------
@@ -264,6 +315,23 @@ export function App() {
           <button onClick={stream ? stopShare : startShare} aria-pressed={!!stream}>
             {stream ? "Stop sharing" : "Share screen"}
           </button>
+          <div className="android-bar" role="group" aria-label="Android">
+            <button onClick={() => captureAndroid(0)} disabled={!!busy || countdown !== null} title="Capture the screen of a connected Android device">
+              {countdown !== null ? `Android in ${countdown}…` : "Capture Android"}
+            </button>
+            <button onClick={() => captureAndroid(3)} disabled={!!busy || countdown !== null} title="Capture after 3 seconds">
+              3 s
+            </button>
+            {devices.length > 1 && (
+              <select id="android-device" value={serial} onChange={(e) => setSerial(e.target.value)} aria-label="Android device">
+                {devices.map((d) => (
+                  <option key={d.serial} value={d.serial}>
+                    {d.model ?? d.serial}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
           <form className="url-form" onSubmit={captureFromUrl}>
             <input
               id="capture-url"
@@ -284,6 +352,14 @@ export function App() {
         </div>
       </header>
 
+      {notice && !error && !busy && (
+        <div className="status notice" role="status">
+          {notice}
+          <button className="ghost small" onClick={() => setNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
       {(error || busy) && (
         <div className={error ? "status error" : "status"} role="status">
           {error ?? busy}
@@ -316,7 +392,7 @@ export function App() {
                     </span>
                     <span className="muted small">
                       {d.boxes.length} box{d.boxes.length === 1 ? "" : "es"}
-                      {d.elements ? " · DOM linked" : ""}
+                      {d.elements ? (d.source.kind === "android" ? " · UI tree" : " · DOM linked") : ""}
                     </span>
                   </span>
                 </button>
@@ -382,6 +458,9 @@ export function App() {
                   <li>
                     <b>Capture URL</b> to also link each box to the page’s real elements
                   </li>
+                  <li>
+                    <b>Capture Android</b> from an emulator or phone over adb; boxes link to your layouts and code
+                  </li>
                 </ul>
               </div>
             )
@@ -423,8 +502,12 @@ export function App() {
                       {targets.length > 0 && (
                         <ul className="targets" aria-label="Elements under this box">
                           {targets.map((t) => (
-                            <li key={t.element.selector} title={t.element.text}>
-                              <code>{t.element.components?.[0] ?? `<${t.element.tag}>`}</code> {t.element.selector}
+                            <li key={t.element.selector} title={[t.element.text, ...(t.element.sources ?? []).map((s) => `${s.file}:${s.line} (${s.reason})`)].filter(Boolean).join("\n")}>
+                              <span className="target-head">
+                                <code>{t.element.components?.[0] ?? `<${t.element.tag}>`}</code> {shortSelector(t.element.selector)}
+                              </span>
+                              {/* File name and line are what matter at a glance; the full path is in the tooltip. */}
+                              {t.element.source && <span className="target-source">↳ {t.element.source.split("/").pop()}</span>}
                             </li>
                           ))}
                         </ul>

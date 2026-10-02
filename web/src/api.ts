@@ -11,6 +11,12 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
   return data as T;
 }
 
+export interface AndroidDevice {
+  serial: string;
+  state: string;
+  model?: string;
+}
+
 export interface SendResult {
   bundle: Bundle;
   markdown: string;
@@ -26,6 +32,8 @@ export const api = {
   deleteDraft: (id: string) => call<{ ok: true }>("DELETE", `/api/drafts/${id}`),
   captureUrl: (url: string, width: number, height: number, fullPage: boolean) =>
     call<Capture>("POST", "/api/capture-url", { url, width, height, fullPage }),
+  androidDevices: () => call<AndroidDevice[]>("GET", "/api/android/devices"),
+  captureAndroid: (serial?: string) => call<Capture & { warning?: string }>("POST", "/api/capture-android", { serial }),
   send: (message: string, captures: { captureId: string; annotated: string; crops: Record<string, string> }[]) =>
     call<SendResult>("POST", "/api/send", { message, captures }),
   imageUrl: (id: string) => `/api/drafts/${id}/image`,

@@ -11,6 +11,7 @@
   --accent: #1f6feb;
   --danger: #c4314b;
   --ok: #1a7f52;
+  --warn: #9a6700;
   --radius: 8px;
   --font: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
   --mono: ui-monospace, "SF Mono", Consolas, monospace;
@@ -28,6 +29,7 @@
     --accent: #4c8dff;
     --danger: #ff6b81;
     --ok: #3cc58a;
+    --warn: #e3b341;
     color-scheme: dark;
   }
 }
@@ -76,6 +78,9 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); backgr
 
 .status { padding: 6px 16px; font-size: 13px; background: var(--sunken); border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: center; }
 .status.error { color: var(--danger); white-space: pre-wrap; }
+.status.notice { color: var(--warn); }
+.android-bar { display: flex; gap: 4px; align-items: center; }
+.android-bar select { border: 1px solid var(--line); background: var(--sunken); border-radius: var(--radius); padding: 6px 8px; max-width: 160px; }
 
 /* main grid */
 .layout { flex: 1; display: grid; grid-template-columns: 220px minmax(0, 1fr) 300px; min-height: 0; }
@@ -137,7 +142,9 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); backgr
 .box-head { display: flex; align-items: center; justify-content: space-between; }
 .num { width: 22px; height: 22px; border-radius: 50%; background: var(--mark); color: #fff; font-weight: 700; font-size: 12px; display: grid; place-items: center; }
 .targets { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 11px; color: var(--ink-2); }
-.targets li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); }
+.targets li { display: grid; min-width: 0; font-family: var(--mono); }
+.target-head, .target-source { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.target-source { color: var(--ok); padding-left: 10px; }
 .targets code { color: var(--accent); }
 
 /* send bar */
