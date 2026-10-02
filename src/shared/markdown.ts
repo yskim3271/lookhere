@@ -12,8 +12,11 @@ function describeTarget(m: ElementMatch): string {
   const parts = [`\`${el.selector}\``, `<${el.tag}>`];
   if (el.text) parts.push(JSON.stringify(el.text));
   if (el.components?.length) parts.push(`component ${el.components.map((c) => `\`${c}\``).join(" in ")}`);
-  if (el.source) parts.push(`source \`${el.source}\``);
-  return `${parts.join(" · ")} (${RELATION_LABEL[m.relation]})`;
+  if (el.source && !el.sources?.length) parts.push(`source \`${el.source}\``);
+  const head = `${parts.join(" · ")} (${RELATION_LABEL[m.relation]})`;
+  // Android elements can have several candidate locations; list each with the evidence.
+  const sources = (el.sources ?? []).map((s) => `\n    - source \`${s.file}:${s.line}\` (${s.reason})`).join("");
+  return head + sources;
 }
 
 /**
@@ -44,7 +47,10 @@ export function renderBundleMarkdown(bundle: Bundle, dir: string): string {
     out.push(`## Screen ${c.n}: ${where} (${c.width}×${c.height})`);
     out.push("");
     out.push(`- Annotated screenshot: \`${file(c.image)}\``);
-    out.push(`- Captured by: ${c.source.kind}`);
+    out.push(`- Captured by: ${c.source.kind}${c.source.device ? ` (${c.source.device.model ?? c.source.device.serial})` : ""}`);
+    if (c.source.activity) {
+      out.push(`- Screen: ${c.source.activity}${c.source.activitySource ? ` → \`${c.source.activitySource}\`` : ""}`);
+    }
     if (c.note.trim()) out.push(`- Note for this screen: ${c.note.trim()}`);
 
     for (const b of c.boxes) {

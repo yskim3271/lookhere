@@ -53,3 +53,64 @@ describe("rect helpers", () => {
     expect(clampRect({ x: -10, y: 790, w: 50, h: 50 }, 1280, 800)).toEqual({ x: 0, y: 790, w: 40, h: 10 });
   });
 });
+
+describe("renderBundleMarkdown for Android", async () => {
+  const { renderBundleMarkdown } = await import("./markdown.js");
+  it("lists every source candidate with its reason and the screen's activity", () => {
+    const md = renderBundleMarkdown(
+      {
+        id: "b1",
+        createdAt: "",
+        message: "",
+        captures: [
+          {
+            n: 1,
+            captureId: "c1",
+            width: 1080,
+            height: 2400,
+            image: "screen-1.png",
+            note: "",
+            source: {
+              kind: "android",
+              title: "com.acme.notes/.LoginActivity",
+              device: { serial: "emulator-5554", model: "Pixel 8" },
+              activity: "com.acme.notes/.LoginActivity",
+              activitySource: "app/src/main/java/com/acme/notes/LoginActivity.kt:7",
+            },
+            boxes: [
+              {
+                n: 1,
+                rect: { x: 1, y: 2, w: 3, h: 4 },
+                note: "Bigger",
+                crop: "screen-1-box-1.png",
+                targets: [
+                  {
+                    relation: "matches",
+                    iou: 0.9,
+                    element: {
+                      platform: "android",
+                      selector: "com.acme.notes:id/signup_button",
+                      tag: "Button",
+                      text: "Sign up",
+                      rect: { x: 1, y: 2, w: 3, h: 4 },
+                      source: "app/src/main/res/layout/activity_login.xml:20",
+                      sources: [
+                        { file: "app/src/main/res/layout/activity_login.xml", line: 20, reason: "android:id @+id/signup_button" },
+                        { file: "app/src/main/java/com/acme/notes/LoginActivity.kt", line: 15, reason: "binding.signupButton" },
+                      ],
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+      ".lookhere/inbox/b1",
+    );
+    expect(md).toContain("- Captured by: android (Pixel 8)");
+    expect(md).toContain("- Screen: com.acme.notes/.LoginActivity → `app/src/main/java/com/acme/notes/LoginActivity.kt:7`");
+    expect(md).toContain("    - source `app/src/main/res/layout/activity_login.xml:20` (android:id @+id/signup_button)");
+    expect(md).toContain("    - source `app/src/main/java/com/acme/notes/LoginActivity.kt:15` (binding.signupButton)");
+  });
+});

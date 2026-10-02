@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 import type { CaptureSource, ElementInfo } from "../../shared/types.js";
 import { hierarchyToElements, parseHierarchy } from "./hierarchy.js";
+import { attachSources } from "./locate.js";
 
 const EXE = process.platform === "win32" ? "adb.exe" : "adb";
 
@@ -160,7 +161,7 @@ export interface AndroidCapture {
  * Captures the current screen with its UI tree. The tree is read first and the screenshot
  * right after, so both describe the same moment (the tree read is the slow, flaky part).
  */
-export async function captureAndroid(opts: { serial?: string } = {}): Promise<AndroidCapture> {
+export async function captureAndroid(opts: { serial?: string; projectDir?: string } = {}): Promise<AndroidCapture> {
   const device = await pickDevice(opts.serial);
   let elements: ElementInfo[] = [];
   let warning: string | undefined;
@@ -172,6 +173,9 @@ export async function captureAndroid(opts: { serial?: string } = {}): Promise<An
   const png = await screencap(device.serial);
   const activity = parseFocusedActivity((await adb(["-s", device.serial, "shell", "dumpsys", "window"]).catch(() => Buffer.from(""))).toString("utf8"));
 
+  // Point each element at the project's source when we are run from an Android project.
+  const activitySource = opts.projectDir && elements.length ? await attachSources(elements, opts.projectDir, activity) : undefined;
+
   return {
     png,
     elements,
@@ -181,6 +185,7 @@ export async function captureAndroid(opts: { serial?: string } = {}): Promise<An
       title: activity ?? device.model ?? device.serial,
       device: { serial: device.serial, ...(device.model ? { model: device.model } : {}) },
       ...(activity ? { activity } : {}),
+      ...(activitySource ? { activitySource } : {}),
     },
   };
 }

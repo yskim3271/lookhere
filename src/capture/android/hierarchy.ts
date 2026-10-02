@@ -147,6 +147,7 @@ export function hierarchyToElements(h: Hierarchy, screen?: { width: number; heig
     };
     const text = nodeText(n);
     if (text) info.text = text;
+    if (text && !(n.attrs.text || n.attrs["content-desc"])) info.textFromChildren = true;
     if (n.attrs["resource-id"]) info.id = n.attrs["resource-id"];
     if (n.attrs.class) info.className = n.attrs.class;
     if (n.attrs.package) info.package = n.attrs.package;

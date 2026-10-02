@@ -29,6 +29,18 @@ export interface ElementInfo {
   className?: string;
   /** Android: app package that owns the view. */
   package?: string;
+  /** True when `text` was gathered from child elements rather than shown by this element itself. */
+  textFromChildren?: boolean;
+  /** Likely places in the project's source that define this element, strongest first. */
+  sources?: SourceHit[];
+}
+
+export interface SourceHit {
+  /** Path relative to the project, forward slashes. */
+  file: string;
+  line: number;
+  /** Why this location was picked, e.g. `android:id @+id/signup_button` or `R.string.sign_up = "Sign up"`. */
+  reason: string;
 }
 
 export type CaptureKind = "paste" | "file" | "screen" | "url" | "android";
@@ -45,6 +57,8 @@ export interface CaptureSource {
   device?: { serial: string; model?: string };
   /** Foreground activity for `android` captures, e.g. "com.acme/.LoginActivity". */
   activity?: string;
+  /** Where that activity class is declared in the project, e.g. "app/src/main/java/com/acme/LoginActivity.kt:7". */
+  activitySource?: string;
 }
 
 export interface Box {

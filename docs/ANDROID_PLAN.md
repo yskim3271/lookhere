@@ -85,7 +85,7 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 |---|---|---|---|
 | A0 ✅ | 스파이크: 에뮬레이터에서 screencap·dump 속도, idle 실패 빈도, Compose 덤프 모양 확인 | 메모 + 실제 덤프 XML 픽스처 3종 (View, Compose, 다이얼로그) | 0.5일 |
 | A1 ✅ | adb 레이어 + hierarchy 파서 | `adb.ts`, `hierarchy.ts`, 픽스처 단위 테스트 | 1일 |
-| A2 | SourceLocator | `locate.ts`, 픽스처 Android 프로젝트(빌드 불필요한 res/ + .kt 몇 개) 테스트 | 1.5일 |
+| A2 ✅ | SourceLocator | `locate.ts`, 픽스처 Android 프로젝트(빌드 불필요한 res/ + .kt 몇 개) 테스트 | 1.5일 |
 | A3 | 서버·CLI·MCP | `/api/android/devices`, `/api/capture-android`, `lookhere capture --android [--serial]`, MCP `list_android_devices`·`capture_android` | 1일 |
 | A4 | UI | Android 버튼, 기기 선택, 3초 후 캡처, 요소 칩에 id/클래스/소스 표시 | 1일 |
 | A5 | 검증·문서 | 에뮬레이터 E2E(데모 앱), Codex로 MCP 끝까지, README Android 절 | 1일 |
@@ -113,6 +113,17 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 - `src/capture/android/hierarchy.ts`: 의존성 없는 덤프 파서 → `ElementInfo` (resource-id가 화면에서 유일하면 그대로, 아니면 `recycler_view > LinearLayout[2] > TextView[1]#title` 같은 경로), 컨테이너는 자식 텍스트를 모아 표시
 - 실기 측정: 에뮬레이터 Settings 홈 캡처 **2.6초**, 요소 63개, 네모 → `Connected devices` TextView 매칭 확인
 - 단위 테스트 13개 추가 (전체 29개 통과)
+
+## A2 결과
+
+- `src/capture/android/locate.ts`: 프로젝트를 한 번 훑어 색인 (레이아웃 `@+id`, `R.id`/`@id`, `binding.camelName`, 모든 로캘의 `strings.xml`, `R.string`/`@string`, `testTag("…")`, 코드·레이아웃의 하드코딩 텍스트, class 선언, Gradle `namespace`/`applicationId`)
+- 근거 강도 순: 레이아웃 id = testTag > `R.id` > ViewBinding > 문자열 리소스 사용처 > 하드코딩 텍스트 > 문자열 정의. 동점이면 현재 Activity 파일 우선, 최대 3개
+- Compose `testTagsAsResourceId`의 resource-id(패키지 없는 이름)를 testTag로 처리, `android:id/*` 프레임워크 id는 무시
+- 다른 앱 화면(런처·설정 등)의 요소에는 후보를 붙이지 않음 (패키지 비교, `.debug` 접미사 허용) → 흔한 단어 우연 일치 방지
+- 컨테이너가 자식에게서 모은 텍스트는 근거로 쓰지 않음 (`textFromChildren`)
+- 번들 마크다운에 후보마다 근거 표시, 화면의 Activity 파일 표시
+- 성능: 60만 줄(Kotlin 3,000개) 색인 5.2초, 조회 200회 1ms → 첫 빌드 후에는 오래된 색인으로 즉시 응답하고 백그라운드 갱신
+- 테스트 13개 추가 (전체 42개). 에뮬레이터 Settings 캡처에 데모 프로젝트를 붙이면 후보 0개 (다른 앱이라 정상)
 
 ## 위험과 대응
 
