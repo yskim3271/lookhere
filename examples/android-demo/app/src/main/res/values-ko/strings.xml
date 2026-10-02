@@ -1,0 +1,5 @@
+<resources>
+    <string name="welcome_back">다시 오신 걸 환영해요</string>
+    <string name="sign_up">가입하기</string>
+    <string name="recent_notes">최근 노트</string>
+</resources>
