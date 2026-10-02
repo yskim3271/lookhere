@@ -4,6 +4,8 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Box, CaptureSource } from "../shared/types.js";
+import { captureAndroid, listDevices } from "../capture/android/adb.js";
+import { prewarmSourceIndex } from "../capture/android/locate.js";
 import { captureUrl } from "./capture-url.js";
 import { Store, decodeDataUrl, type SendItem } from "./store.js";
 
@@ -72,6 +74,7 @@ export interface RunningServer {
 
 export async function startServer(store: Store, port = DEFAULT_PORT): Promise<RunningServer> {
   await store.init();
+  prewarmSourceIndex(store.projectDir);
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -129,6 +132,19 @@ export async function startServer(store: Store, port = DEFAULT_PORT): Promise<Ru
         if (!/^https?:\/\//i.test(body.url ?? "")) throw new HttpError(400, "URL must start with http:// or https://");
         const shot = await captureUrl({ ...body, projectDir: store.projectDir });
         return send(res, 201, await store.createDraft(shot.png, shot.source, shot.elements));
+      }
+
+      if (resource === "android" && id === "devices" && method === "GET") {
+        return send(res, 200, await listDevices());
+      }
+
+      if (resource === "capture-android" && method === "POST") {
+        const body = await readJson<{ serial?: string; delayMs?: number }>(req);
+        const delay = Math.min(Math.max(Number(body.delayMs) || 0, 0), 10_000);
+        if (delay) await new Promise((r) => setTimeout(r, delay));
+        const shot = await captureAndroid({ serial: body.serial || undefined, projectDir: store.projectDir });
+        const draft = await store.createDraft(shot.png, shot.source, shot.elements);
+        return send(res, 201, { ...draft, ...(shot.warning ? { warning: shot.warning } : {}) });
       }
 
       if (resource === "send" && method === "POST") {

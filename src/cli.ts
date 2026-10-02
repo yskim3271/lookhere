@@ -2,6 +2,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { captureAndroid, listDevices } from "./capture/android/adb.js";
 import { runMcpServer } from "./mcp/server.js";
 import { openInBrowser } from "./open.js";
 import { captureUrl } from "./server/capture-url.js";
@@ -15,6 +16,8 @@ Usage
   lookhere mcp               Run the MCP server (stdio) for Claude Code, Codex, Cursor, ...
   lookhere pull              Print feedback the agent has not received yet, then mark it delivered
   lookhere capture <url>     Screenshot a page (with its DOM elements) into the annotator
+  lookhere capture --android Capture the connected Android device's screen (with its UI tree)
+  lookhere devices           List Android devices visible to adb
   lookhere setup [agent]     Show how to connect an agent: claude, codex, cursor
   lookhere hook              For a Claude Code UserPromptSubmit hook: print new feedback, if any
 
@@ -26,6 +29,9 @@ Options
   --json            pull: print JSON instead of Markdown
   --width, --height capture: viewport size (default 1280×800)
   --full-page       capture: whole scrollable page
+  --android         capture: from an Android emulator or phone instead of a URL
+  --serial <id>     capture --android: which device, when several are connected
+  --delay <sec>     capture --android: wait before capturing (up to 10)
 `;
 
 function mcpCommand(): { command: string; args: string[] } {
@@ -62,6 +68,9 @@ async function main(): Promise<void> {
       width: { type: "string" },
       height: { type: "string" },
       "full-page": { type: "boolean", default: false },
+      android: { type: "boolean", default: false },
+      serial: { type: "string" },
+      delay: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
       version: { type: "boolean", short: "v", default: false },
     },
@@ -101,18 +110,37 @@ async function main(): Promise<void> {
       if (!values.keep) for (const b of pending) await store.setStatus(b.id, "delivered");
       return;
     }
+    case "devices": {
+      const devices = await listDevices();
+      if (devices.length === 0) console.log("No Android devices. Start an emulator or connect a phone with USB debugging on.");
+      for (const d of devices) console.log(`${d.serial}	${d.state}	${d.model ?? ""}`);
+      return;
+    }
     case "capture": {
-      if (!arg) throw new Error("Usage: lookhere capture <url>");
+      if (!arg && !values.android) throw new Error("Usage: lookhere capture <url>  or  lookhere capture --android");
       await store.init();
-      const shot = await captureUrl({
-        url: arg,
-        width: values.width ? Number(values.width) : undefined,
-        height: values.height ? Number(values.height) : undefined,
-        fullPage: values["full-page"],
-        projectDir: store.projectDir,
-      });
-      const draft = await store.createDraft(shot.png, shot.source, shot.elements);
-      console.log(`Captured ${shot.source.url} with ${shot.elements.length} elements (draft ${draft.id}).`);
+      if (values.android) {
+        const delay = Math.min(Math.max(Number(values.delay ?? 0), 0), 10);
+        if (delay) await new Promise((r) => setTimeout(r, delay * 1000));
+        const shot = await captureAndroid({ serial: values.serial, projectDir: store.projectDir });
+        const draft = await store.createDraft(shot.png, shot.source, shot.elements);
+        const linked = shot.elements.filter((e) => e.sources?.length).length;
+        console.log(
+          `Captured ${shot.source.activity ?? shot.source.title} with ${shot.elements.length} elements, ` +
+            `${linked} linked to source (draft ${draft.id}).`,
+        );
+        if (shot.warning) console.warn(`Warning: ${shot.warning}`);
+      } else {
+        const shot = await captureUrl({
+          url: arg,
+          width: values.width ? Number(values.width) : undefined,
+          height: values.height ? Number(values.height) : undefined,
+          fullPage: values["full-page"],
+          projectDir: store.projectDir,
+        });
+        const draft = await store.createDraft(shot.png, shot.source, shot.elements);
+        console.log(`Captured ${shot.source.url} with ${shot.elements.length} elements (draft ${draft.id}).`);
+      }
       const ui = await ensureServer(store, port);
       if (!values["no-open"]) openInBrowser(ui.url);
       console.log(`Annotate it at ${ui.url}`);

@@ -57,7 +57,7 @@ describe("SourceIndex.locate", () => {
 
   it("matches translated text from other locales", () => {
     const hits = index.locate(el({ text: "가입하기" }));
-    expect(hits[0]).toMatchObject({ file: LAYOUT, line: lineOf(LAYOUT, "@string/sign_up") });
+    expect(hits[0]).toEqual({ file: LAYOUT, line: lineOf(LAYOUT, "@string/sign_up"), reason: '@string/sign_up = "가입하기"' });
   });
 
   it("falls back to the string definition when nothing references it", () => {

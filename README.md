@@ -56,6 +56,24 @@ In a React dev build, each element is traced to the JSX that rendered it: React 
 the module location, and the dev server's source map turns it back into the original file and line
 (`src/NavButton.jsx:3`). React 18 and earlier expose that location directly.
 
+### Android
+
+With an emulator or a phone with USB debugging on, `lookhere capture --android` (or the agent's
+`capture_android` tool) grabs the current screen and its UI tree. Run it from your Android project and
+each box is also linked to where that view lives in your code:
+
+```markdown
+- `com.acme.notes:id/signup_button` · <Button> · "Sign up" (matches the box)
+    - source `app/src/main/res/layout/activity_login.xml:20` (android:id @+id/signup_button)
+    - source `app/src/main/java/com/acme/notes/LoginActivity.kt:15` (binding.signupButton)
+```
+
+Evidence used, strongest first: layout `@+id` and Compose `testTag` (with `testTagsAsResourceId`),
+`R.id` / ViewBinding references, string resources (any locale) and where they are used, hard-coded text.
+Elements from other apps on screen (launcher, system UI) are never linked. adb is found through
+`ANDROID_HOME`, the default SDK folder, a winget install, or `PATH` (override with `LOOKHERE_ADB`).
+`lookhere devices` lists what adb sees.
+
 Draw boxes by dragging. Drag a box to move it, drag a corner to resize, press `Delete` to remove it.
 Every box gets its own note; each screen can have a note too. Captures stay in the tray until you send.
 
@@ -96,6 +114,8 @@ For Claude Code you can also deliver feedback automatically: add a `UserPromptSu
 |---|---|
 | `open_annotator` | Opens the annotator in the user's browser |
 | `capture_url` | Screenshots a URL with its DOM elements and puts it in the annotator |
+| `capture_android` | Captures an Android device's screen with its UI tree (and source links) |
+| `list_android_devices` | Lists emulators and phones visible to adb |
 | `wait_for_feedback` | Waits until the user presses Send, then returns the feedback |
 | `get_feedback` | Returns feedback not yet delivered |
 | `list_feedback` / `show_feedback` | Browse earlier bundles |
@@ -110,6 +130,8 @@ lookhere [open]            Start the annotator and open it in the browser
 lookhere mcp               Run the MCP server (stdio)
 lookhere pull              Print feedback the agent has not received yet
 lookhere capture <url>     Screenshot a page (with its DOM elements) into the annotator
+lookhere capture --android Capture the connected Android device (--serial, --delay)
+lookhere devices           List Android devices visible to adb
 lookhere setup [agent]     Show how to connect claude, codex, or cursor
 lookhere hook              For a Claude Code UserPromptSubmit hook
 

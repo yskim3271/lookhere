@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { captureAndroid, listDevices } from "../capture/android/adb.js";
+import { prewarmSourceIndex } from "../capture/android/locate.js";
 import { captureUrl } from "../server/capture-url.js";
 import { ensureServer } from "../server/http.js";
 import type { Store } from "../server/store.js";
@@ -48,6 +50,7 @@ const imagesParam = z
 
 export async function runMcpServer(store: Store, port: number): Promise<void> {
   await store.init();
+  prewarmSourceIndex(store.projectDir);
   let ui: { url: string } | null = null;
   // The UI server is started lazily so an agent that never asks for it costs nothing.
   const uiUrl = async () => (ui ??= await ensureServer(store, port)).url;
@@ -59,7 +62,7 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
     {
       title: "Open the lookhere annotator",
       description:
-        "Opens the lookhere annotator in the user's browser. There the user captures screens (paste, file, screen share, or URL), " +
+        "Opens the lookhere annotator in the user's browser. There the user captures screens (paste, file, screen share, URL, or Android device), " +
         "draws boxes on the parts they mean, writes a note per box, and presses Send. Use when the user wants to show you UI changes visually. " +
         "Then call wait_for_feedback to receive what they send.",
       annotations: { readOnlyHint: true, openWorldHint: false },
@@ -103,6 +106,55 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
           },
         ],
       };
+    },
+  );
+
+  mcp.registerTool(
+    "list_android_devices",
+    {
+      title: "List connected Android devices",
+      description: "Lists Android emulators and phones visible to adb, with their state (device, unauthorized, offline).",
+      annotations: { readOnlyHint: true, openWorldHint: false },
+      inputSchema: {},
+    },
+    async () => {
+      const devices = await listDevices();
+      const text = devices.length
+        ? devices.map((d) => `${d.serial}  ${d.state.padEnd(12)}  ${d.model ?? ""}`).join("\n")
+        : "No Android devices. Start an emulator or connect a phone with USB debugging on.";
+      return { content: [{ type: "text", text }] };
+    },
+  );
+
+  mcp.registerTool(
+    "capture_android",
+    {
+      title: "Capture an Android screen for the user to annotate",
+      description:
+        "Screenshots the current screen of a connected Android emulator or phone and records its UI tree (resource ids, classes, text). " +
+        "When run in an Android project, each element is also linked to likely source locations (layout ids, string resources, testTags). " +
+        "The capture appears in the annotator for the user to mark up; then call wait_for_feedback.",
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      inputSchema: {
+        serial: z.string().optional().describe("adb serial; needed only when several devices are connected."),
+        delay_seconds: z.number().min(0).max(10).default(0).describe("Wait before capturing, e.g. while the user opens a menu."),
+        open_browser: z.boolean().default(true).describe("Open the annotator afterwards."),
+      },
+    },
+    async ({ serial, delay_seconds, open_browser }) => {
+      if (delay_seconds) await new Promise((r) => setTimeout(r, delay_seconds * 1000));
+      const shot = await captureAndroid({ serial, projectDir: store.projectDir });
+      const draft = await store.createDraft(shot.png, shot.source, shot.elements);
+      const annotator = await uiUrl();
+      if (open_browser) openInBrowser(annotator);
+      const linked = shot.elements.filter((e) => e.sources?.length).length;
+      const lines = [
+        `Captured ${shot.source.activity ?? shot.source.title} on ${shot.source.device?.model ?? shot.source.device?.serial} ` +
+          `(${draft.image.width}×${draft.image.height}, ${shot.elements.length} elements, ${linked} linked to source).`,
+        ...(shot.warning ? [`Warning: ${shot.warning}`] : []),
+        `It is waiting in the annotator at ${annotator}. Ask the user to box what they want changed and press Send, then call wait_for_feedback.`,
+      ];
+      return { content: [{ type: "text", text: lines.join("\n") }] };
     },
   );
 

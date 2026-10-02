@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { ElementInfo, SourceHit } from "../../shared/types.js";
@@ -152,16 +153,18 @@ export class SourceIndex {
   locate(el: ElementInfo, activity?: string, limit = 3): SourceHit[] {
     if (!this.ownsPackage(el.package)) return [];
     const hits: (SourceHit & { score: number })[] = [];
-    const add = (locs: Loc[] | undefined, reason: string, score: number) => {
-      for (const l of locs ?? []) hits.push({ file: l.file, line: l.line, reason, score });
+    // `reason` may depend on the file: the same reference is `R.string.x` in code, `@string/x` in XML.
+    const add = (locs: Loc[] | undefined, reason: string | ((l: Loc) => string), score: number) => {
+      for (const l of locs ?? []) hits.push({ file: l.file, line: l.line, reason: typeof reason === "string" ? reason : reason(l), score });
     };
+    const inXml = (l: Loc) => l.file.endsWith(".xml");
 
     const rid = el.id ?? "";
     const idMatch = /^([\w.]+):id\/(\w+)$/.exec(rid);
     if (idMatch && idMatch[1] !== "android") {
       const name = idMatch[2];
       add(this.idDefs.get(name), `android:id @+id/${name}`, SCORE.layoutId);
-      add(this.idRefs.get(name), `R.id.${name}`, SCORE.idRef);
+      add(this.idRefs.get(name), (l) => (inXml(l) ? `@id/${name}` : `R.id.${name}`), SCORE.idRef);
       add(this.bindingRefs.get(bindingName(name)), `binding.${bindingName(name)}`, SCORE.binding);
     } else if (rid && !rid.includes(":id/")) {
       // Compose with testTagsAsResourceId reports the testTag as the resource-id.
@@ -174,7 +177,7 @@ export class SourceIndex {
       const defs = this.stringDefs.get(t) ?? [];
       for (const d of defs) {
         const refs = this.stringRefs.get(d.name);
-        if (refs?.length) add(refs, `R.string.${d.name} = "${t}"`, SCORE.stringRef);
+        if (refs?.length) add(refs, (l) => `${inXml(l) ? "@string/" : "R.string."}${d.name} = "${t}"`, SCORE.stringRef);
         else add([d.loc], `<string name="${d.name}">`, SCORE.stringDef);
       }
       add(this.literals.get(t), `text "${t}"`, SCORE.literal);
@@ -248,6 +251,17 @@ export function sourceIndexFor(projectDir: string): Promise<SourceIndex> {
     );
   }
   return hit.index;
+}
+
+/** Gradle files at the top of an Android project (or one level down, for nested apps). */
+export function isAndroidProject(projectDir: string): boolean {
+  const names = ["settings.gradle.kts", "settings.gradle", "build.gradle.kts", "build.gradle"];
+  return names.some((n) => existsSync(path.join(projectDir, n)) || existsSync(path.join(projectDir, "app", n)));
+}
+
+/** Starts building the source index in the background so the first capture does not wait for it. */
+export function prewarmSourceIndex(projectDir: string): void {
+  if (isAndroidProject(projectDir)) sourceIndexFor(projectDir).catch(() => {});
 }
 
 /** Adds `sources` (and `source`, the best one) to each element. Returns the activity's file, if found. */
