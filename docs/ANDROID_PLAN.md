@@ -71,7 +71,7 @@ src/capture/
   adapter.ts        CaptureAdapter 인터페이스 { id, capture(opts) → {png, source, elements} }
   web.ts            기존 capture-url.ts 이동
   android/
-    adb.ts          adb 찾기(PATH, ANDROID_HOME, ANDROID_SDK_ROOT), devices, screencap, dump(재시도)
+    adb.ts          adb 찾기(PATH, ANDROID_HOME, ANDROID_SDK_ROOT, winget 설치 경로), devices, screencap, dump(재시도)
     hierarchy.ts    uiautomator XML → ElementInfo[] (bounds 파싱, 경로 selector 생성)
     locate.ts       SourceLocator: 프로젝트 인덱싱 + 후보 검색
 src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, sources?: {file, line, reason}[]
@@ -93,8 +93,8 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 
 ## 준비물
 
-- **Android SDK platform-tools (adb)**: 이 PC에는 아직 없다. Android Studio 설치 또는 `winget install Google.PlatformTools`
-- **테스트 기기**: Android Studio AVD 에뮬레이터 1대 (API 34, Pixel 크기) 또는 USB 디버깅을 켠 실기기
+- **Android SDK platform-tools (adb)**: ✅ `winget install Google.PlatformTools`로 설치 (adb 37.0.1)
+- **테스트 기기**: Android Studio 공식 에뮬레이터(AVD) — Pixel 8, API 35, Google APIs x86_64 이미지. Hyper-V가 켜진 PC라 "Windows 하이퍼바이저 플랫폼" 기능이 필요하다. 실기기(USB 디버깅)는 보조 확인용
 - **데모 앱** `examples/android-demo`: View 화면 1개 + Compose 화면 1개 (id, 문자열 리소스, testTag, 하드코딩 텍스트를 일부러 섞음)
 
 ## 위험과 대응
