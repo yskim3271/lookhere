@@ -127,7 +127,7 @@ export async function startServer(store: Store, port = DEFAULT_PORT): Promise<Ru
       if (resource === "capture-url" && method === "POST") {
         const body = await readJson<{ url: string; width?: number; height?: number; fullPage?: boolean }>(req);
         if (!/^https?:\/\//i.test(body.url ?? "")) throw new HttpError(400, "URL must start with http:// or https://");
-        const shot = await captureUrl(body);
+        const shot = await captureUrl({ ...body, projectDir: store.projectDir });
         return send(res, 201, await store.createDraft(shot.png, shot.source, shot.elements));
       }
 

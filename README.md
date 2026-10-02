@@ -40,6 +40,9 @@ npx lookhere setup claude    # or: codex, cursor
 
 Now ask your agent: *"open lookhere"*, *"capture localhost:3000 so I can mark it up"*, or *"check my lookhere feedback"*.
 
+Codex asks before every MCP tool call. For `codex exec` (no one to approve), allow lookhere's tools in
+`~/.codex/config.toml` under `[mcp_servers.lookhere]` with `default_tools_approval_mode = "approve"`.
+
 ## Capturing
 
 | How | Best for | Element mapping |
@@ -47,7 +50,11 @@ Now ask your agent: *"open lookhere"*, *"capture localhost:3000 so I can mark it
 | **Paste** (`Ctrl+V` / `⌘V`) a screenshot from your OS tool | anything | no |
 | **Drop / open** an image file | mockups, bug reports | no |
 | **Share screen**, then *Capture frame* (or *Capture in 3 s*) | simulators, emulators, desktop apps; keep interacting and grab several frames | no |
-| **Capture URL** (headless Chrome/Edge) | your dev server | **yes**: selector, text, React/Vue component, source file when available |
+| **Capture URL** (headless Chrome/Edge) | your dev server | **yes**: selector, text, React/Vue/Svelte component, source file and line in dev builds |
+
+In a React dev build, each element is traced to the JSX that rendered it: React 19's debug stack gives
+the module location, and the dev server's source map turns it back into the original file and line
+(`src/NavButton.jsx:3`). React 18 and earlier expose that location directly.
 
 Draw boxes by dragging. Drag a box to move it, drag a corner to resize, press `Delete` to remove it.
 Every box gets its own note; each screen can have a note too. Captures stay in the tray until you send.
@@ -125,6 +132,7 @@ downloaded. If neither is present, run `npx playwright install chromium`.
 npm install
 npm run build      # UI (Vite) + Node (tsc) into dist/
 npm test           # unit tests (Vitest)
+npm run e2e        # real browser: screen share -> box -> note -> send (needs Chrome or Edge)
 node dist/cli.js   # run from source
 npm run dev:web    # UI with hot reload; start `node dist/cli.js --no-open` alongside for the API
 ```

@@ -19,3 +19,5 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
+      - run: npm run e2e
+        if: runner.os != 'macOS'

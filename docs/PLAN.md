@@ -7,20 +7,26 @@
 아래 **완료 기준**이 모두 체크되면 MVP 달성이다.
 
 - [x] `npx lookhere` 한 줄로 로컬 주석 UI가 열린다 (Windows에서 확인. macOS/Linux는 CI 빌드·테스트만)
-- [ ] 캡처 4가지: 클립보드 붙여넣기 ✅, 이미지 파일 드롭 ✅(붙여넣기와 같은 경로), 화면 공유 ⏳ 실제 브라우저에서 수동 확인 필요, URL 캡처 ✅
+- [x] 캡처 4가지: 클립보드 붙여넣기, 이미지 파일 드롭, 화면 공유(`npm run e2e`에서 Chromium 탭 자동 선택으로 검증), URL 캡처
 - [x] 캡처 위에 네모를 그리고(이동·크기조절·삭제) 네모마다 캡션을 단다
 - [x] 여러 캡처를 모아 한 번에 "보내기"
 - [x] 에이전트가 세 경로로 받는다: MCP 도구(텍스트+이미지), `lookhere pull`(stdout), `.lookhere/inbox/` 파일
-- [x] URL 캡처는 네모마다 실제 DOM 요소(selector, 텍스트, React 컴포넌트 이름)를 같이 넘긴다 (React 앱으로 컴포넌트 이름 확인은 아직)
+- [x] URL 캡처는 네모마다 실제 DOM 요소(selector, 텍스트, React 컴포넌트 이름, 소스 파일:줄)를 같이 넘긴다
 - [x] Claude Code / Codex / Cursor 연결 방법이 README에 있고, `lookhere setup <agent>`가 설정 명령을 알려준다
 - [x] 단위 테스트 통과 + 실제 브라우저에서 캡처→주석→MCP 수신까지 한 번 끝까지 검증
 
 ## 남은 일 (MVP 마무리)
 
-- [ ] 화면 공유 캡처를 실제 Chrome/Edge에서 확인 (앱 내 브라우저 패널은 화면 공유를 막음)
-- [ ] React 개발 서버로 URL 캡처 → 컴포넌트 이름이 실제로 잡히는지 확인
-- [ ] Claude Code / Codex에 실제로 연결해서 대화로 한 번 써보기
+- [x] 화면 공유: Chromium 자동 선택으로 E2E 통과. 사람이 직접 고르는 Chrome 선택창은 사용자 확인 대기
+- [x] React 개발 서버(examples/react-demo)로 URL 캡처 → `NavButton < Header < App`, `src/NavButton.jsx:3` 확인 (React 19 디버그 스택 + 소스맵)
+- [x] Codex(`codex exec`, gpt-5.5)가 MCP로 피드백을 받아 메모와 selector를 정확히 답함
+- [x] Claude Code에 MCP 등록(`claude mcp get lookhere` → Connected). 대화 테스트는 CLI 재로그인 후
+- [x] 실제 Chrome(browser-skill)에서 URL 캡처 → 네모 → 메모 → 보내기 확인
 - [ ] npm 배포 (`npx lookhere`가 실제로 동작하려면 필요)
+
+## 다음: Android
+
+[ANDROID_PLAN.md](ANDROID_PLAN.md)
 
 ## 범위 밖 (MVP 이후)
 

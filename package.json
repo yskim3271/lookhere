@@ -19,7 +19,8 @@
     "build:node": "tsc -p tsconfig.json",
     "dev:web": "vite",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "node scripts/e2e.mjs"
   },
   "keywords": [
     "mcp",

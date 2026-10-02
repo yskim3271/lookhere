@@ -62,6 +62,7 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
         "Opens the lookhere annotator in the user's browser. There the user captures screens (paste, file, screen share, or URL), " +
         "draws boxes on the parts they mean, writes a note per box, and presses Send. Use when the user wants to show you UI changes visually. " +
         "Then call wait_for_feedback to receive what they send.",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       inputSchema: { open_browser: z.boolean().default(true).describe("Also open it in the default browser.") },
     },
     async ({ open_browser }) => {
@@ -78,6 +79,7 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
       description:
         "Screenshots a URL (usually the local dev server) in a headless browser and records its DOM elements, so each box the user draws " +
         "is linked to real selectors and component names. The capture appears in the annotator for the user to mark up.",
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
       inputSchema: {
         url: z.string().url().describe("Page to capture, e.g. http://localhost:3000/"),
         width: z.number().int().min(200).max(3840).default(1280),
@@ -87,7 +89,7 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
       },
     },
     async ({ url, width, height, full_page, open_browser }) => {
-      const shot = await captureUrl({ url, width, height, fullPage: full_page });
+      const shot = await captureUrl({ url, width, height, fullPage: full_page, projectDir: store.projectDir });
       const draft = await store.createDraft(shot.png, shot.source, shot.elements);
       const annotator = await uiUrl();
       if (open_browser) openInBrowser(annotator);
@@ -111,6 +113,7 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
       description:
         "Returns feedback bundles the user sent from lookhere and has not been delivered yet: numbered boxes with notes, " +
         "the elements under each box, and the screenshots. Returns a short message when there is nothing new.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       inputSchema: { images: imagesParam },
     },
     async ({ images }) => {
@@ -126,6 +129,7 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
       title: "Wait for the user to send UI feedback",
       description:
         "Blocks until the user presses Send in the lookhere annotator (or the timeout passes), then returns the feedback like get_feedback.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       inputSchema: {
         timeout_seconds: z.number().int().min(5).max(1800).default(300),
         images: imagesParam,
@@ -149,6 +153,7 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
     {
       title: "List lookhere feedback bundles",
       description: "Lists feedback bundles with their status (pending, delivered, done).",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       inputSchema: { status: z.enum(["pending", "delivered", "done"]).optional() },
     },
     async ({ status }) => {
@@ -165,6 +170,7 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
     {
       title: "Show one feedback bundle again",
       description: "Returns a feedback bundle by id, whatever its status.",
+      annotations: { readOnlyHint: true, openWorldHint: false },
       inputSchema: { bundle_id: z.string(), images: imagesParam },
     },
     async ({ bundle_id, images }) => ({ content: await bundlesAsContent(store, [bundle_id], images) }),
@@ -175,6 +181,7 @@ export async function runMcpServer(store: Store, port: number): Promise<void> {
     {
       title: "Mark feedback as handled",
       description: "Marks a feedback bundle as done after you have made the requested changes.",
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       inputSchema: { bundle_id: z.string() },
     },
     async ({ bundle_id }) => {

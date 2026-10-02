@@ -39,7 +39,7 @@ function setupText(agent?: string): string {
   const quoted = [command, ...args].map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
   const sections: Record<string, string> = {
     claude: `Claude Code: run in your project\n\n  claude mcp add lookhere -- ${quoted}\n\nOptional: deliver feedback automatically with every prompt by adding a UserPromptSubmit hook\nthat runs:  ${quoted.replace(/ mcp$/, " hook")}`,
-    codex: `Codex: run\n\n  codex mcp add lookhere -- ${quoted}\n\nor add to ~/.codex/config.toml:\n\n  [mcp_servers.lookhere]\n  command = ${JSON.stringify(command)}\n  args = ${JSON.stringify(args)}`,
+    codex: `Codex: run\n\n  codex mcp add lookhere -- ${quoted}\n\nor add to ~/.codex/config.toml:\n\n  [mcp_servers.lookhere]\n  command = ${JSON.stringify(command)}\n  args = ${JSON.stringify(args)}\n\nCodex asks before each MCP tool call. To skip that (required for \`codex exec\`), add:\n\n  default_tools_approval_mode = "approve"`,
     cursor: `Cursor: add to .cursor/mcp.json in your project\n\n${JSON.stringify({ mcpServers: { lookhere: { command, args } } }, null, 2)
       .split("\n")
       .map((l) => "  " + l)
@@ -109,6 +109,7 @@ async function main(): Promise<void> {
         width: values.width ? Number(values.width) : undefined,
         height: values.height ? Number(values.height) : undefined,
         fullPage: values["full-page"],
+        projectDir: store.projectDir,
       });
       const draft = await store.createDraft(shot.png, shot.source, shot.elements);
       console.log(`Captured ${shot.source.url} with ${shot.elements.length} elements (draft ${draft.id}).`);

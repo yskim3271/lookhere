@@ -1,5 +1,6 @@
 import type { Browser } from "playwright-core";
 import type { CaptureSource, ElementInfo } from "../shared/types.js";
+import { loadSourceMap, originalPosition, type RawSourceMap } from "./sourcemap.js";
 
 export interface UrlCaptureOptions {
   url: string;
@@ -8,6 +9,55 @@ export interface UrlCaptureOptions {
   fullPage?: boolean;
   /** Extra wait after load, for pages that animate in. */
   waitMs?: number;
+  /** Used to show source files relative to the project. */
+  projectDir?: string;
+}
+
+type StackLoc = { url: string; line: number; column: number };
+type CollectedElement = ElementInfo & { loc?: StackLoc };
+
+/**
+ * Replaces approximate `file:~line` sources (from React's dev stacks) with the original
+ * file and line, using the dev server's source maps. Drops the temporary `loc` field.
+ */
+async function resolveSources(elements: CollectedElement[], fetchText: (url: string) => Promise<string>, projectDir?: string) {
+  const maps = new Map<string, Promise<RawSourceMap | null>>();
+  const mapFor = (url: string) => {
+    if (!maps.has(url)) {
+      maps.set(url, fetchText(url).then((code) => loadSourceMap(code, url, fetchText), () => null));
+    }
+    return maps.get(url)!;
+  };
+  for (const el of elements) {
+    const loc = el.loc;
+    delete el.loc;
+    if (!loc) continue;
+    const map = await mapFor(loc.url);
+    const pos = map ? originalPosition(map, loc.line, loc.column) : null;
+    if (pos) el.source = `${displayPath(pos.source, loc.url, projectDir)}:${pos.line}`;
+  }
+}
+
+/**
+ * Source paths in maps are either file-system paths (shown relative to the project when
+ * possible) or relative to the module URL, e.g. "App.jsx" next to "/src/App.jsx".
+ */
+export function displayPath(source: string, moduleUrl: string, projectDir?: string): string {
+  const isFsPath = /^file:\/\//.test(source) || /^[A-Za-z]:[\\/]/.test(source);
+  if (!isFsPath) {
+    try {
+      return decodeURIComponent(new URL(source, moduleUrl).pathname).replace(/^\//, "");
+    } catch {
+      return source;
+    }
+  }
+  // file:///home/x -> /home/x, file:///C:/x -> C:/x
+  const clean = source.replace(/^file:\/\//, "").replace(/^\/([A-Za-z]:)/, "$1").replace(/\\/g, "/");
+  if (projectDir) {
+    const root = projectDir.replace(/\\/g, "/").replace(/\/$/, "") + "/";
+    if (clean.toLowerCase().startsWith(root.toLowerCase())) return clean.slice(root.length);
+  }
+  return clean.replace(/^\//, "");
 }
 
 export interface UrlCapture {
@@ -46,7 +96,8 @@ export async function captureUrl(opts: UrlCaptureOptions): Promise<UrlCapture> {
     if (opts.waitMs) await page.waitForTimeout(opts.waitMs);
 
     const fullPage = opts.fullPage ?? false;
-    const elements = (await page.evaluate(collectElements, { fullPage })) as ElementInfo[];
+    const elements = (await page.evaluate(collectElements, { fullPage })) as CollectedElement[];
+    await resolveSources(elements, (u) => page.evaluate((x) => fetch(x).then((r) => r.text()), u), opts.projectDir);
     const png = await page.screenshot({ fullPage, type: "png" });
     return {
       png,
@@ -67,7 +118,7 @@ export async function captureUrl(opts: UrlCaptureOptions): Promise<UrlCapture> {
  * Runs inside the page. Must be self-contained: Playwright serializes it as source.
  * Coordinates are CSS pixels, which equal image pixels at deviceScaleFactor 1.
  */
-function collectElements({ fullPage }: { fullPage: boolean }): ElementInfo[] {
+function collectElements({ fullPage }: { fullPage: boolean }): CollectedElement[] {
   const MAX = 4000;
   const SKIP = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "META", "LINK", "HEAD", "BR", "WBR"]);
   const offX = fullPage ? window.scrollX : 0;
@@ -106,6 +157,41 @@ function collectElements({ fullPage }: { fullPage: boolean }): ElementInfo[] {
     return parts.join(" > ");
   }
 
+  // React 19 dev builds keep the stack of the JSX call instead of `_debugSource`. The first
+  // frame outside dependencies is the component file. Its line is from the transformed module,
+  // so "~" marks it as approximate until the Node side maps `stackLoc` through the source map.
+  let stackLoc: StackLoc | undefined;
+  function sourceFromStack(stack: string): string | undefined {
+    for (const line of stack.split("\n").slice(1)) {
+      const m = /((?:https?|file):\/\/[^\s()]+):(\d+):(\d+)\)?\s*$/.exec(line);
+      if (!m || /node_modules|\/@fs\/|\/\.vite\/|\/@vite\/|\/@react-refresh/.test(m[1])) continue;
+      try {
+        const path = decodeURIComponent(new URL(m[1]).pathname).replace(/^\//, "");
+        stackLoc = { url: m[1], line: Number(m[2]), column: Number(m[3]) };
+        return `${path}:~${m[2]}`;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }
+
+  // First ~80 characters of visible text, with a space between separate text nodes so
+  // adjacent links read "Features Pricing" rather than "FeaturesPricing".
+  function shortText(el: Element): string {
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const parts: string[] = [];
+    let length = 0;
+    for (let n = walker.nextNode(); n && length < 80; n = walker.nextNode()) {
+      const t = (n.nodeValue || "").replace(/\s+/g, " ").trim();
+      const parent = n.parentElement;
+      if (!t || (parent && SKIP.has(parent.tagName))) continue;
+      parts.push(t);
+      length += t.length + 1;
+    }
+    return parts.join(" ").slice(0, 80);
+  }
+
   // Framework component names and dev-only source locations.
   function frameworkInfo(el: Element): { components?: string[]; source?: string } {
     const anyEl = el as unknown as Record<string, any>;
@@ -121,6 +207,7 @@ function collectElements({ fullPage }: { fullPage: boolean }): ElementInfo[] {
           if (name && !names.includes(name)) names.push(name);
         }
         if (!source && f._debugSource?.fileName) source = `${f._debugSource.fileName}:${f._debugSource.lineNumber}`;
+        if (!source && f._debugStack?.stack) source = sourceFromStack(String(f._debugStack.stack));
         f = f.return;
       }
       return { components: names.length ? names : undefined, source };
@@ -143,7 +230,7 @@ function collectElements({ fullPage }: { fullPage: boolean }): ElementInfo[] {
     return {};
   }
 
-  const out: ElementInfo[] = [];
+  const out: CollectedElement[] = [];
   const all = document.body ? document.body.querySelectorAll("*") : [];
   for (const el of Array.from(all)) {
     if (out.length >= MAX) break;
@@ -156,15 +243,15 @@ function collectElements({ fullPage }: { fullPage: boolean }): ElementInfo[] {
     const style = getComputedStyle(el);
     if (style.visibility === "hidden" || style.display === "none" || style.opacity === "0") continue;
 
-    // innerText keeps the spaces between inline children ("Features Pricing"), textContent does not.
-    const raw = el instanceof HTMLElement ? el.innerText : el.textContent;
-    const text = (raw || "").replace(/\s+/g, " ").trim().slice(0, 80);
-    const info: ElementInfo = {
+    const text = shortText(el);
+    stackLoc = undefined;
+    const info: CollectedElement = {
       selector: selectorFor(el),
       tag: el.tagName.toLowerCase(),
       rect: { x: Math.round(x), y: Math.round(y), w: Math.round(r.width), h: Math.round(r.height) },
       ...frameworkInfo(el),
     };
+    if (stackLoc) info.loc = stackLoc;
     if (text) info.text = text;
     if (el.id) info.id = el.id;
     if (el.classList.length) info.classes = Array.from(el.classList).slice(0, 6);
