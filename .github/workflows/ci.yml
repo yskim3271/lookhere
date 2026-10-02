@@ -6,6 +6,7 @@ on:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
@@ -20,4 +21,5 @@ jobs:
       - run: npm run build
       - run: npm test
       - run: npm run e2e
-        if: runner.os != 'macOS'
+        # Headless tab capture is verified on Windows; Linux headless Chrome cannot start screen sharing.
+        if: runner.os == 'Windows'

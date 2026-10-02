@@ -40,7 +40,13 @@ try {
   const ui = await ctx.newPage();
   await ui.goto(server.url);
   await ui.getByRole("button", { name: "Share screen" }).click();
-  await ui.getByRole("button", { name: "Capture frame" }).waitFor({ timeout: 10_000 });
+  // Surface the annotator's own error (e.g. screen sharing unsupported) instead of a bare timeout.
+  await Promise.race([
+    ui.getByRole("button", { name: "Capture frame" }).waitFor({ timeout: 10_000 }),
+    ui.locator(".status.error").waitFor({ timeout: 10_000 }).then(async () => {
+      throw new Error(`Screen share failed: ${await ui.locator(".status.error").innerText()}`);
+    }),
+  ]);
   // Give the video a moment to receive its first frame.
   await ui.waitForFunction(() => (document.querySelector(".share video")?.videoWidth ?? 0) > 0, null, { timeout: 10_000 });
   await ui.getByRole("button", { name: "Capture frame" }).click();
