@@ -68,6 +68,10 @@ each box is also linked to where that view lives in your code:
     - source `app/src/main/java/com/acme/notes/LoginActivity.kt:15` (binding.signupButton)
 ```
 
+![Before and after: the agent made the Sign up text bigger and renamed the Compose button](docs/images/android-before-after.png)
+
+*Real run on the demo app in `examples/android-demo`: two boxes with notes, sent to Codex over MCP, applied, rebuilt.*
+
 Evidence used, strongest first: layout `@+id` and Compose `testTag` (with `testTagsAsResourceId`),
 `R.id` / ViewBinding references, string resources (any locale) and where they are used, hard-coded text.
 Elements from other apps on screen (launcher, system UI) are never linked. adb is found through

@@ -7,12 +7,12 @@
 
 ## 🎯 Goal: Android MVP 달성
 
-- [ ] UI의 **Android** 버튼(또는 `lookhere capture --android`)으로 연결된 기기의 현재 화면을 3초 안에 캡처한다
-- [ ] 기기가 여러 대면 고를 수 있고, *3초 후 캡처*로 메뉴·키보드가 열린 상태도 찍을 수 있다
-- [ ] 네모마다 화면 요소가 붙는다: resource-id, 클래스, 텍스트, content-desc, testTag (View 기반 + Compose)
-- [ ] Android 프로젝트 폴더에서 실행하면 네모마다 **소스 후보**가 붙는다 (레이아웃 XML의 id, 문자열 리소스 사용처, testTag, 하드코딩된 텍스트)
-- [ ] MCP 도구 `list_android_devices`, `capture_android`가 있고 Codex/Claude Code에서 한 번 끝까지 검증한다
-- [ ] 기기 없이 도는 단위 테스트(덤프 XML 픽스처 + 픽스처 프로젝트)와 README Android 절
+- [x] UI의 **Android** 버튼(또는 `lookhere capture --android`)으로 연결된 기기의 현재 화면을 3초 안에 캡처한다 (실측 2.6초)
+- [x] 기기가 여러 대면 고를 수 있고, *3초 후 캡처*로 메뉴·키보드가 열린 상태도 찍을 수 있다 (기기 2대 동시 연결은 아직 실기 확인 전)
+- [x] 네모마다 화면 요소가 붙는다: resource-id, 클래스, 텍스트, content-desc, testTag (View 기반 + Compose)
+- [x] Android 프로젝트 폴더에서 실행하면 네모마다 **소스 후보**가 붙는다 (레이아웃 XML의 id, 문자열 리소스 사용처, testTag, 하드코딩된 텍스트)
+- [x] MCP 도구 `list_android_devices`, `capture_android`가 있고 Codex에서 끝까지 검증 (Claude Code는 CLI 재로그인 후)
+- [x] 기기 없이 도는 단위 테스트(덤프 XML 픽스처 + 픽스처 프로젝트)와 README Android 절
 
 ## 왜 이 방식인가
 
@@ -88,7 +88,7 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 | A2 ✅ | SourceLocator | `locate.ts`, 픽스처 Android 프로젝트(빌드 불필요한 res/ + .kt 몇 개) 테스트 | 1.5일 |
 | A3 ✅ | 서버·CLI·MCP | `/api/android/devices`, `/api/capture-android`, `lookhere capture --android [--serial]`, MCP `list_android_devices`·`capture_android` | 1일 |
 | A4 ✅ | UI | Android 버튼, 기기 선택, 3초 후 캡처, 요소 칩에 id/클래스/소스 표시 | 1일 |
-| A5 | 검증·문서 | 에뮬레이터 E2E(데모 앱), Codex로 MCP 끝까지, README Android 절 | 1일 |
+| A5 ✅ | 검증·문서 | 에뮬레이터 E2E(데모 앱), Codex로 MCP 끝까지, README Android 절 | 1일 |
 | A6 | (선택) 라이브 미러 | screencap 폴링(1–2fps) 미리보기로 기기를 조작하며 원하는 순간 캡처 | 이후 |
 
 ## 준비물
@@ -144,6 +144,24 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 - 캡처 목록: Activity 짧은 이름(`SettingsHomepageActivity`) + `UI tree` 표시
 - 박스 패널: 긴 Android 경로는 끝 두 단계만, 소스는 `↳ 파일명:줄`(전체 경로·근거는 툴팁)
 - 실제 Chrome(browser-skill)에서 3초 캡처 → 네모 → 메모 → 보내기 → `lookhere pull`로 소스·Activity 포함 확인
+
+## A5 결과: 실제 앱으로 끝까지
+
+데모 앱 `examples/android-demo` (AGP 9.4.1, Gradle 9.8.0, Kotlin 2.4.20, Compose BOM 2026.09.00; Compose 1.12 때문에 compileSdk 37, targetSdk 36)
+
+| 화면 | 요소 | 연결된 소스 (실측) |
+|---|---|---|
+| Login (View) | `signup_button` "Sign up" | `activity_login.xml:29` (android:id) · `LoginActivity.kt:17` (binding.signupButton) · `activity_login.xml:33` (@string/sign_up) |
+| | `terms` | `activity_login.xml:37` · `LoginActivity.kt:20` (R.id.terms) · `activity_login.xml:41` (하드코딩 텍스트) |
+| Home (Compose) | "Recent notes" | `HomeScreen.kt:34` (R.string.recent_notes) |
+| | 아이콘 "Search notes" | `HomeScreen.kt:35` (contentDescription 텍스트) |
+| | `new_note_button` | `HomeScreen.kt:39` (testTag, `testTagsAsResourceId`) |
+| | Activity | `LoginActivity.kt:9`, `HomeActivity.kt:9` |
+
+Codex 루프 (`codex exec`, gpt-5.5): 두 화면에 메모 2개를 보냄 → Codex가 `get_feedback`으로 받아 `activity_login.xml`과 `HomeScreen.kt`를 수정하고 `mark_done` 호출.
+첫 수정은 `textSize`를 **추가만 하고 기존 값을 남겨** 빌드가 깨졌다(에이전트 실수, 위치는 정확). 빌드 오류를 알려주자 Codex가 고쳤고, 다시 빌드·설치해 두 변경이 화면에 반영된 것을 확인했다 (`docs/images/android-before-after.png`). 확인 후 데모 소스는 원래대로 되돌렸다.
+
+남은 것: 기기 2대 동시 연결 실기 확인, `FLAG_SECURE`(검은 화면) 경고, Claude Code 대화 검증
 
 ## 위험과 대응
 
