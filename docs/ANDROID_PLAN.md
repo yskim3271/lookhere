@@ -84,7 +84,7 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 | # | 내용 | 산출물 | 예상 |
 |---|---|---|---|
 | A0 ✅ | 스파이크: 에뮬레이터에서 screencap·dump 속도, idle 실패 빈도, Compose 덤프 모양 확인 | 메모 + 실제 덤프 XML 픽스처 3종 (View, Compose, 다이얼로그) | 0.5일 |
-| A1 | adb 레이어 + hierarchy 파서 | `adb.ts`, `hierarchy.ts`, 픽스처 단위 테스트 | 1일 |
+| A1 ✅ | adb 레이어 + hierarchy 파서 | `adb.ts`, `hierarchy.ts`, 픽스처 단위 테스트 | 1일 |
 | A2 | SourceLocator | `locate.ts`, 픽스처 Android 프로젝트(빌드 불필요한 res/ + .kt 몇 개) 테스트 | 1.5일 |
 | A3 | 서버·CLI·MCP | `/api/android/devices`, `/api/capture-android`, `lookhere capture --android [--serial]`, MCP `list_android_devices`·`capture_android` | 1일 |
 | A4 | UI | Android 버튼, 기기 선택, 3초 후 캡처, 요소 칩에 id/클래스/소스 표시 | 1일 |
@@ -106,6 +106,13 @@ src/shared/types.ts CaptureKind에 "android" 추가, ElementInfo에 platform, so
 - Settings 홈 덤프: 노드 64개, `resource-id`(`com.android.settings:id/homepage_title` 등)·`text`·`class` 모두 채워짐
   → `test/fixtures/android/settings-home.xml`로 저장
 - 현재 화면: `dumpsys window` → `mCurrentFocus=…/com.android.settings.homepage.SettingsHomepageActivity`
+
+## A1 결과
+
+- `src/capture/android/adb.ts`: adb 찾기(LOOKHERE_ADB → ANDROID_HOME/SDK_ROOT → 기본 SDK 경로 → winget → PATH), `devices -l` 파싱, 기기 선택 오류 안내(unauthorized/offline/여러 대), `uiautomator dump /dev/tty`(pull 없이 stdout, 3회 재시도), `screencap`, 포커스 Activity
+- `src/capture/android/hierarchy.ts`: 의존성 없는 덤프 파서 → `ElementInfo` (resource-id가 화면에서 유일하면 그대로, 아니면 `recycler_view > LinearLayout[2] > TextView[1]#title` 같은 경로), 컨테이너는 자식 텍스트를 모아 표시
+- 실기 측정: 에뮬레이터 Settings 홈 캡처 **2.6초**, 요소 63개, 네모 → `Connected devices` TextView 매칭 확인
+- 단위 테스트 13개 추가 (전체 29개 통과)
 
 ## 위험과 대응
 

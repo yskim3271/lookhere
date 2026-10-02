@@ -11,6 +11,8 @@ export interface Rect {
 
 /** One element of the captured page, as seen at capture time. */
 export interface ElementInfo {
+  /** Where the element came from; absent means "web" (older captures). */
+  platform?: "web" | "android";
   selector: string;
   tag: string;
   rect: Rect;
@@ -23,9 +25,13 @@ export interface ElementInfo {
   components?: string[];
   /** Source location when the framework exposes it in dev builds, e.g. "src/Header.tsx:42". */
   source?: string;
+  /** Android: fully qualified view class, e.g. "android.widget.TextView". */
+  className?: string;
+  /** Android: app package that owns the view. */
+  package?: string;
 }
 
-export type CaptureKind = "paste" | "file" | "screen" | "url";
+export type CaptureKind = "paste" | "file" | "screen" | "url" | "android";
 
 export interface CaptureSource {
   kind: CaptureKind;
@@ -35,6 +41,10 @@ export interface CaptureSource {
   title?: string;
   /** Viewport used for `url` captures, in CSS pixels. */
   viewport?: { width: number; height: number; deviceScaleFactor: number };
+  /** Device for `android` captures. */
+  device?: { serial: string; model?: string };
+  /** Foreground activity for `android` captures, e.g. "com.acme/.LoginActivity". */
+  activity?: string;
 }
 
 export interface Box {

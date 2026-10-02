@@ -11,7 +11,8 @@ const PASTE_KEY = isMac ? "⌘V" : "Ctrl+V";
 
 function describeSource(c: Capture): string {
   if (c.source.kind === "url") return c.source.title || c.source.url || "Page";
-  return c.source.title || { paste: "Pasted image", file: "Image file", screen: "Screen capture" }[c.source.kind];
+  const fallback = { paste: "Pasted image", file: "Image file", screen: "Screen capture", android: "Android screen" };
+  return c.source.title || fallback[c.source.kind];
 }
 
 function isAnnotated(c: Capture): boolean {
